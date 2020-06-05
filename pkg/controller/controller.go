@@ -16,7 +16,9 @@ package controller
 
 import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	splctrl "github.com/splunk/splunk-operator/pkg/splunk/controller"
 )
@@ -37,10 +39,40 @@ func AddToManager(mgr manager.Manager) error {
 
 	// call AddToManager for each of the registered controllers
 	for _, ctrl := range SplunkControllersToAdd {
-		if err = splctrl.AddToManager(mgr, ctrl, c); err != nil {
+		if err = addToManager(mgr, ctrl, c); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// addToManager adds a specific Splunk Controller to the Manager.
+// The Manager will set fields on the Controller and Start it when the Manager is Started.
+func addToManager(mgr manager.Manager, sctl splctrl.SplunkController, c client.Client) error {
+
+	// Create a new controller
+	ctrl, err := splctrl.NewController(mgr, sctl, c)
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to primary custom resource
+	err = ctrl.Watch(&source.Kind{Type: sctl.GetInstance()}, &handler.EnqueueRequestForObject{})
+	if err != nil {
+		return err
+	}
+
+	// Watch for changes to secondary resources
+	for _, t := range sctl.GetWatchTypes() {
+		err = ctrl.Watch(&source.Kind{Type: t}, &handler.EnqueueRequestForOwner{
+			IsController: true,
+			OwnerType:    sctl.GetInstance(),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
 }

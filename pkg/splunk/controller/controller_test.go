@@ -22,8 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/config"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	splcommon "github.com/splunk/splunk-operator/pkg/splunk/common"
@@ -90,25 +88,6 @@ func newMockController() MockController {
 	}
 
 	return MockController{state: state}
-}
-
-func TestAddToManager(t *testing.T) {
-	cfg, err := config.GetConfig()
-	if err != nil {
-		t.Errorf("TestAddToManager: GetConfig() returned %v; want nil", err)
-	}
-
-	mgr, err := manager.New(cfg, manager.Options{Namespace: "test"})
-	if err != nil {
-		t.Errorf("TestAddToManager: manager.New() returned %v; want nil", err)
-	}
-
-	c := spltest.NewMockClient()
-	ctrl := newMockController()
-	err = AddToManager(mgr, ctrl, c)
-	if err != nil {
-		t.Errorf("TestAddToManager: AddToManager() returned %v; want nil", err)
-	}
 }
 
 func TestReconcile(t *testing.T) {

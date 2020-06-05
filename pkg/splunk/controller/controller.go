@@ -21,10 +21,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 
 	splcommon "github.com/splunk/splunk-operator/pkg/splunk/common"
 )
@@ -40,44 +38,6 @@ type SplunkController interface {
 
 	// Reconcile is used to perform an idempotent reconciliation of the custom resource managed by this controller
 	Reconcile(client.Client, splcommon.MetaObject) (reconcile.Result, error)
-}
-
-// AddToManager adds a specific Splunk Controller to the Manager.
-// The Manager will set fields on the Controller and Start it when the Manager is Started.
-func AddToManager(mgr manager.Manager, splctrl SplunkController, c client.Client) error {
-
-	// Create a new controller
-	instance := splctrl.GetInstance()
-	kind := instance.GetObjectKind().GroupVersionKind().Kind
-	opts := controller.Options{
-		Reconciler: splunkReconciler{
-			client:  c,
-			splctrl: splctrl,
-		},
-	}
-	ctrl, err := controller.New(kind, mgr, opts)
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary custom resource
-	err = ctrl.Watch(&source.Kind{Type: instance}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to secondary resources
-	for _, t := range splctrl.GetWatchTypes() {
-		err = ctrl.Watch(&source.Kind{Type: t}, &handler.EnqueueRequestForOwner{
-			IsController: true,
-			OwnerType:    instance,
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	return err
 }
 
 // blank assignment to verify that SplunkReconciler implements reconcile.Reconciler
@@ -133,4 +93,15 @@ func (r splunkReconciler) Reconcile(request reconcile.Request) (reconcile.Result
 
 	scopedLog.Info("Reconciliation complete")
 	return reconcile.Result{}, nil
+}
+
+// NewController returns an instance of controller.Controller that uses a SplunkController
+func NewController(mgr manager.Manager, splctrl SplunkController, c client.Client) (controller.Controller, error) {
+	instance := splctrl.GetInstance()
+	kind := instance.GetObjectKind().GroupVersionKind().Kind
+	opts := controller.Options{Reconciler: splunkReconciler{
+		client:  c,
+		splctrl: splctrl,
+	}}
+	return controller.New(kind, mgr, opts)
 }
